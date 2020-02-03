@@ -1,0 +1,87 @@
+// Luke Rinehart
+// GPU parallel processing Assignment 1
+// GPU matrix mult
+
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include <time.h>
+#include <stdio.h>
+
+void gpu_mult(int *, int *, int *, int);
+
+__global__ void mmult(int *A, int *B, int *C, int k)
+{
+  int row = blockIdx.y * blockDim.y + threadIdx.y;
+  int col = blockIdx.x * blockDim.x + threadIdx.x;
+  int sum = 0;
+
+  if(row < k && col < k) {    /* K is shared width/height of matrixs */
+     for(int i = 0; i < k; ++i) {
+         sum += A[row*k+i]*B[i*k+col];
+     }
+
+      C[row*k+col] = sum;
+
+   }
+}
+
+
+void gpu_mult(int *A, int *B, int *C, int k) 
+{
+        int size = k*k*sizeof(int);
+        int *Ad, *Bd, *Cd;
+
+        dim3 blocks((99)/k+1,(99)/k+1);  /* Only part im unsure of is how many threads/blocks/grids to dedicate */
+        dim3 grids(k,k);
+
+        cudaMalloc((void**)&Ad, size);
+        cudaMemcpy(Ad,A,size,cudaMemcpyHostToDevice);
+        cudaMalloc((void**)&Bd, size);                        /*Allocate Space  for A B and C on Device*/
+        cudaMemcpy(Bd,B,size,cudaMemcpyHostToDevice);
+        cudaMalloc((void**)&Cd,size);
+
+        mmult<<<grids,blocks>>>(Ad,Bd,Cd,k);  /* Run Multiplication*/
+
+	cudaMemcpy(C,Cd,size,cudaMemcpyDeviceToHost);           /* Put C back on host  */
+
+        cudaFree(Ad);
+        cudaFree(Bd);  /* Free mem */
+        cudaFree(Cd);
+}
+
+int main()
+{
+ int size = 256;
+ int A[size*size];
+ int B[size*size];
+ int C[size*size];
+
+ srand(time(0));
+    for(int i = 0; i < size*size; ++i){
+        A[i] = rand() % 2;
+        B[i] = rand() % 2;
+    }
+
+
+ cudaEvent_t start, stop;
+ cudaEventCreate(&start);
+ cudaEventCreate(&stop);
+
+ cudaEventRecord(start);
+
+ gpu_mult(A,B,C,size);
+
+ cudaEventRecord(stop);
+ cudaEventSynchronize(stop);
+
+ float milliseconds = 0;
+ cudaEventElapsedTime(&milliseconds, start, stop);   /* Report Time */
+ printf("%f ms\n", milliseconds);
+
+ return 0;
+
+}
+
+
+
+
