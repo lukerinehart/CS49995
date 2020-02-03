@@ -1,0 +1,19 @@
+Luke Rinehart – CS49995 Matrix Multiplication
+Report:
+The run-time of the gpu program is exponentially faster at larger computations, while the cpu program handles well at very low computations. I expect this is a result of moving data into and out of host and device memory in the gpu program that the cpu program doesn’t have to do.
+
+32x32
+CPU: 0.166080 ms
+GPU: 0.324256 ms
+
+64x64
+CPU: 1.334976 ms
+GPU: 0.356320 ms
+
+128x128
+CPU: 10.610976 ms
+GPU: 0.641504 ms
+
+256x256
+CPU: 83.537376 ms
+GPU: 1.412192 ms
