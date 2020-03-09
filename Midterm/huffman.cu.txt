@@ -1,0 +1,8 @@
+// Luke Rinehart
+// CS49995
+// Midterm
+
+#include <studio.h>
+#include <stdlib.h>
+
+
