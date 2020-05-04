@@ -1,0 +1,25 @@
+Luke Rinehart
+CS49995 
+Assignment 4
+
+Naive Implementation
+	L = 12,  K = 5, Performance = 0.398784 ms
+	L = 12,  K = 10 Performance = 0.388096 ms
+	L = 100, k = 5, Performance = 0.577152 ms
+
+Constant Memory Implementation
+	L = 12,  K = 5, Performance = 0.331776 ms
+	L = 12,  K = 10 Performance = 0.337476 ms
+	L = 100, k = 5, Performance = 0.663328 ms
+
+
+Shared Memory & Constant Memory Implementation
+	L = 12,  K = 5, Performance = 0.328064 ms
+	L = 12,  k = 10 Performance = 0.330124 ms
+	L = 100, K = 5, Performance = 0.520928 ms
+	L = 100, k = 10 Performance = 0.550382 ms
+
+
+The most significant factor seems to be the lenght of the input L. Increasing K while keeping L the same caused performance to slightly drop
+in both versions that used the constant memory for the mask, while the Naive implementation speed up slightly. The constant memory without shared
+memory did the worst while L was high, while constant memory with shared memory did the best.

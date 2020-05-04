@@ -1,0 +1,160 @@
+#include	<stdio.h>
+#include	<stdlib.h>
+#include	<cuda.h>
+#include 	<cuda_runtime.h>
+
+#define 	ARRAY_SIZE	100
+#define		MASK_WIDTH	5
+#define		TILE_SIZE	4
+
+__constant__ int M[MASK_WIDTH] = {5,4,3,2,1};
+
+void run(int*, int*, int*);
+
+
+__global__ void convolution0(int *N, int *M, int *P, int width){		//Naive Approach
+
+        int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+	int pvalue = 0;
+
+        int N_start = i - (MASK_WIDTH / 2);
+
+        for( int j = 0; j < MASK_WIDTH; j++){
+                if(N_start + j >= 0 && N_start + j < width){
+                        pvalue += N[N_start + j]*M[j];
+                }
+
+        }
+        P[i] = pvalue;
+}
+
+
+__global__ void convolution1(int *N, int *P, int width){         // Constant Approach
+
+        int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+        int pvalue = 0;
+
+        int N_start = i - (MASK_WIDTH / 2);
+
+        for( int j = 0; j < MASK_WIDTH; j++){
+                if(N_start + j >= 0 && N_start + j < width){
+                        pvalue += N[N_start + j]*M[j];		// M is stored in constant mem
+                }
+
+        }
+        P[i] = pvalue;
+}
+
+
+__global__ void convolution2(int *N, int *P, int width){         // Shared Memory Approach with constant
+
+        int i = blockIdx.x * blockDim.x + threadIdx.x;
+	int pvalue = 0;	
+        int N_start = i - (MASK_WIDTH / 2);
+
+
+	__shared__ int N_s[TILE_SIZE];
+
+	N_s[threadIdx.x] = N[i];
+
+	__syncthreads();
+
+	int this_tile_start = blockIdx.x*blockDim.x;
+	int next_tile_start = (blockIdx.x + 1)*blockDim.x;      
+
+        for( int j = 0; j < MASK_WIDTH; j++){
+
+		int N_index = N_start + j;		
+
+                if(N_index >= 0 && N_index < width){	//make sure its within range
+			
+			if((N_index >= this_tile_start) && (N_index < next_tile_start)){
+			
+				pvalue += N_s[threadIdx.x + j - (MASK_WIDTH / 2)]*M[j];
+
+			}
+			else{
+				pvalue += N[N_index] * M[j];	// Not in tile range
+			}
+
+		}
+
+
+
+        }
+        P[i] = pvalue;
+}
+
+
+int main(){
+
+	int size = ARRAY_SIZE * sizeof(int);
+	int *I = (int*)malloc(size);
+	int *O = (int*)malloc(size);
+	//int *M = (int*)malloc(MASK_WIDTH * sizeof(int));
+	//M[0] =5;M[1]=4;M[2]=3;M[3]=2;M[4]=1;
+
+	for(int i = 0; i < ARRAY_SIZE; ++i){
+		I[i] = i + 1;
+	}
+
+	cudaEvent_t start, stop;
+ 	cudaEventCreate(&start);
+ 	cudaEventCreate(&stop);
+
+	cudaEventRecord(start);
+
+	run(I,M,O);
+
+	for(int i = 0; i < ARRAY_SIZE; ++i){
+		printf("O[%i]: %i \n", i, O[i]);
+	}
+
+	cudaEventRecord(stop);
+	cudaEventSynchronize(stop);
+
+	float milliseconds = 0;
+	cudaEventElapsedTime(&milliseconds, start, stop);   /* Report Time */
+	printf("%f ms\n", milliseconds);
+
+	free(I);
+	free(O);
+	//free(M);
+
+	return 0;
+}
+
+void run(int *N, int *M, int *P){
+
+	int *Nd, *Md, *Pd; 
+	
+	int size = ARRAY_SIZE * sizeof(int);
+
+	dim3 blocks(1,8);
+	dim3 grids(2,2);
+
+	cudaMalloc((void**)&Nd, size);
+	cudaMemcpy(Nd,N,size,cudaMemcpyHostToDevice);
+	cudaMalloc((void**)&Pd, size);
+	cudaMemcpy(Pd, P, size, cudaMemcpyHostToDevice);
+
+	cudaMalloc((void**)&Md,(sizeof(int)*MASK_WIDTH));
+	cudaMemcpyToSymbol(Md, M, MASK_WIDTH*sizeof(int));	// For Constant Mem
+	//cudaMemcpy(Md, M, (MASK_WIDTH*sizeof(int)), cudaMemcpyHostToDevice);  //For non constant mem 
+
+
+	//convolution0<<<grids, blocks>>>(Nd, Md, Pd, ARRAY_SIZE);
+	//convolution1<<<grids, blocks>>>(Nd, Pd, ARRAY_SIZE);
+	convolution2<<<grids, blocks>>>(Nd, Pd, ARRAY_SIZE);
+
+
+	cudaMemcpy(P, Pd, size, cudaMemcpyDeviceToHost);
+
+	cudaFree(Nd);
+	cudaFree(Md);
+	cudaFree(Pd);
+
+}
+
