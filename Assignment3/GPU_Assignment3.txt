@@ -1,0 +1,15 @@
+Luke Rinehart
+CS49995 
+Assignment 3
+
+1)  
+       A) The local memory is “local” to each individual thread that called it, so with 1000 thread blocks and 512 threads per block, there would be 1000x512 = 512,000 different versions of the variable.
+       
+       B) The Shared memory is shared inside each thread block, so there would be 1000 different versions of the variable.
+
+2) 
+	A) In an NxN matrix multiplication with no tiling, each element is accessed N times
+
+	B) With tiling would reduce access to global memory by a factor of T, so global memory is accessed N/T times.
+
+
