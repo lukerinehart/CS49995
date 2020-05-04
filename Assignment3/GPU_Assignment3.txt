@@ -13,3 +13,9 @@ Assignment 3
 	B) With tiling would reduce access to global memory by a factor of T, so global memory is accessed N/T times.
 
 
+	
+
+3)
+	The different memory usages, global memory, shared with interleaving addressing, and shared with sequential addressing will have different results.
+	When dealing with an array of around 1000 values, the Interleaving Addressing did the worst with around 0.645, The Sequential Addressing did better with around 0.244,
+	and Global Access with sequential addressing did the best with and a 0.120 

@@ -1,0 +1,145 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <time.h>
+#include <cuda.h>
+
+#define BLOCK_SIZE 512
+#define ARRAY_SIZE 8192
+
+void fill(int* data, int size)
+{
+	srand(time(NULL));
+        for (int i = 0; i < size; ++i)
+                data[i] = rand() % 1001;
+}
+
+
+__global__ void reduce_max0(int *input, int *results, int n)    //Interleaving Addressing
+{
+        extern __shared__ int sdata[];
+        unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+        unsigned int tx = threadIdx.x;
+        sdata[tx] = input[i];
+
+        __syncthreads();
+
+        for(unsigned int s = 1; s < blockDim.x; s *= 2){
+                if(tx % (2*s) == 0){
+                        sdata[tx] += sdata[tx + s];
+                }
+                __syncthreads();
+        }
+
+                // finally, thread 0 writes the result
+        if(threadIdx.x == 0)
+        {
+                // the result is per-block
+                results[blockIdx.x] = sdata[0];
+        }
+}
+
+
+__global__ void reduce_max1(int *input, int *results, int n)    //Sequential Addressing
+{
+        extern __shared__ int sdata[];
+        unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+        unsigned int tx = threadIdx.x;
+        sdata[tx] = input[i];
+
+        __syncthreads();
+
+        // block-wide reduction
+        for(unsigned int s = blockDim.x/2; s > 0; s >>=1){
+                if(tx < s){
+                        sdata[tx] += sdata[tx + s];
+                }
+                __syncthreads();
+        }
+
+                // finally, thread 0 writes the result
+        if(threadIdx.x == 0)
+        {
+                // the result is per-block
+                results[blockIdx.x] = sdata[0];
+        }
+}
+
+
+__global__ void reduce_max2(int *input, int *results, int n)    //Reading from global, with sequential
+{
+        extern __shared__ int sdata[];
+        unsigned int i = blockIdx.x * (blockDim.x*2)+ threadIdx.x;
+        unsigned int tx = threadIdx.x;
+        sdata[tx] = input[i] + input[i + blockDim.x];
+        __syncthreads();
+
+        // block-wide reduction
+        for(unsigned int s = blockDim.x/2; s > 0; s >>=1){
+                if(tx < s){
+                        sdata[tx] += sdata[tx + s];
+                }
+                __syncthreads();
+        }
+
+                // finally, thread 0 writes the result
+        if(threadIdx.x == 0)
+        {
+                // the result is per-block
+                results[blockIdx.x] = sdata[0];
+        }
+}
+
+// get global max element via per-block reductions 
+int main(){ 
+	int num_blocks =ARRAY_SIZE / BLOCK_SIZE;
+	int size = sizeof(int) * ARRAY_SIZE;
+	int* h_a = (int*)malloc(size);
+		
+	fill(h_a,ARRAY_SIZE);
+
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+ 	cudaEventCreate(&stop);
+
+ 	cudaEventRecord(start);
+
+
+	int* d_a;
+	cudaMalloc((void**) &d_a, size);
+	cudaMemcpy(d_a, h_a, size, cudaMemcpyHostToDevice);
+
+	int* d_b;
+	cudaMalloc((void**) &d_b, size);
+		
+	int result_size = sizeof(int) * num_blocks;
+	int* d_c;
+	cudaMalloc((void**) &d_c, result_size);	
+
+	dim3 block(1,BLOCK_SIZE);
+	dim3 grid(4,4);
+
+	reduce_max2<<<grid, block>>>(d_a,d_b,ARRAY_SIZE);
+	reduce_max2<<<grid, block>>>(d_b,d_c,num_blocks);
+
+	int* h_c = (int*)malloc(result_size);
+	cudaMemcpy(h_c, d_c, result_size, cudaMemcpyDeviceToHost);
+	printf("MAX: %i\n", h_c[0]);
+
+
+	cudaEventRecord(stop);
+	cudaEventSynchronize(stop);
+
+	float milliseconds = 0;
+	cudaEventElapsedTime(&milliseconds, start, stop);   /* Report Time */
+	printf("%f ms\n", milliseconds);
+
+
+	free(h_a);
+	free(h_c);
+	cudaFree(d_a);
+	cudaFree(d_b);
+	cudaFree(d_c);
+	cudaThreadExit();
+
+}
