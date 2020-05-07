@@ -1,0 +1,128 @@
+#include	<stdio.h>
+#include 	<stdlib.h>
+#include	<cuda.h>
+#include	<cuda_runtime.h>
+
+#define		SIZE	100	//
+#define		FEED	0.1	// per interval
+#define		KILL	0.1	// per interval
+#define		TILE	3	//3x3 subset
+
+//To Make: nvcc reaction_diffusion.cu
+
+struct cell {
+
+	float A0, A1;
+	float B0, B1;
+};
+
+__global__ void reaction(cell **dish){
+
+	//int row = blockIdx.x * blockDim.x + threadIdx.x; 
+	//int col = blockIdx.y * blockDim.y + threadIdx.y;
+
+	int row = blockIdx.x;
+	int col = blockIdx.y;
+
+	if(row < SIZE && col < SIZE){
+	
+		cell this_cell = dish[row][col];
+		cell tile[TILE][TILE];
+		cell ghost = {0.0,0.0,0.0,0.0};
+		float Av = 0.0;
+		float Bv = 0.0;
+
+		for(int i = row - TILE, u = 0; (i < row + TILE) && u < TILE; ++i, ++u){		//Gets nearby cells
+			for(int j = col - TILE, v = 0; (j < col + TILE) && v < TILE; ++j, ++v){
+				if((i > 0 && i < SIZE) && (j > 0 && j < SIZE)){
+					tile[u][v] = dish[i][j];
+					Av = Av + dish[i][j].A0;	// Average Values
+					Bv = Bv + dish[i][j].B0;
+				}else{
+					tile[u][v] = ghost;    // If ghost cell
+
+				}
+			}
+		}
+			
+		int tempA = this_cell.A1;
+		int tempB = this_cell.B1;
+
+		Av = Av/(TILE*TILE);		
+		Bv = Bv/(TILE*TILE);
+		int A = this_cell.A0;
+		int B = this_cell.B0;
+
+		//printf("AV[%f]", Av);
+		//printf("BV[%f]", Bv);	
+
+		// The function can vary, this one is based on karl sims webpage
+		this_cell.A1 = A + (Av - (A*B*B) + FEED);
+		this_cell.B1 = B + (Bv + (A*B*B) - KILL);
+
+		this_cell.A0 = tempA;
+		this_cell.B0 = tempB;
+	}
+}
+
+void run(cell **dish){
+
+	cell **d_dish;
+
+	int size = SIZE*SIZE*sizeof(cell);
+
+	cudaMalloc((void**) &d_dish, size);
+	cudaMemcpy(dish, d_dish, size, cudaMemcpyHostToDevice);
+
+	dim3 block(10, 10);
+	dim3 grid(SIZE/10,SIZE/10);
+
+	reaction<<<grid,block>>>(d_dish);
+
+	cudaMemcpy(dish, d_dish, size, cudaMemcpyDeviceToHost);	
+	cudaFree(d_dish);
+
+}
+
+void print_dish(cell dish[SIZE][SIZE]){
+	for(int i = 0; i < SIZE; ++i){
+                for(int j = 0; j < SIZE; ++j){
+                      	if(dish[i][j].B1 > dish[i][j].A1){
+				printf("B");
+			}else {
+				printf("A");	
+			}
+                     
+                }
+                printf("\n");
+	}
+}
+
+
+int main(){
+
+	cell dish[SIZE][SIZE];	// 100x100 Dish size
+
+	cell **ptr = (cell**)dish;
+
+	for(int i = 0; i < SIZE; ++i){
+		for(int j = 0; j < SIZE; ++j){	// set default values of A & B
+			dish[i][j].A0 = 0.2; dish[i][j].A1 = 0.2;
+			dish[i][j].B0 = 0.5; dish[i][j].B1 = 0.5;
+			//printf("D[%i][%i]", i, j);
+		}
+	}
+
+
+	dish[SIZE/2][SIZE/2].A0 = 20.0;	//initial feed
+	dish[SIZE/2][SIZE/2].A1 = 20.0;
+
+	print_dish(dish);
+	for(int i = 0; i < 3; ++i){
+                printf("------------------------------------------------------------------------\n");
+		run(ptr);	
+		print_dish(dish);
+	}
+
+return 0;
+}
