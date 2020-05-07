@@ -1,0 +1,84 @@
+#include		<stdio.h>
+#include		<stdlib.h>
+#include		<cuda.h>
+#include		<cuda_runtime.h>
+#include 		<string.h>
+
+#define 	        LENGTH  7
+
+__global__ void bw_transform(char *str, char **out){
+
+        char temp[LENGTH];
+	char temp2[LENGTH + 1];
+	int i = threadIdx.x;
+	int index = 0;
+
+        if(i < LENGTH){
+
+                for(int j = i; j < LENGTH; ++j){
+			temp[index] = str[j];		// i = 1  == ANANA|B,  	i = 2 == NANA|BA etc
+                	index = index + 1;
+		}
+
+		for(int j = 0; j < i; ++j){
+			temp[index] = str[j];		// The later half |BA
+			index = index + 1;
+		}
+		
+
+		for(int j = 0; j < LENGTH; ++j){temp2[j] = temp[j];}	//must end with \0 ?
+		temp2[LENGTH] = '\0';
+
+		out[i] = temp2;
+		__syncthreads();
+
+		printf("[%i](%s)---%li bytes\n", i, out[i], sizeof(out[i]));
+
+
+        }
+
+}
+
+int compare(const void* a, const void* b){
+	return strcmp(*(const char**)a, *(const char**)b);
+}
+
+int main(){
+
+	char str[] = "^BANANA";
+
+	int size = sizeof(str);
+        int out_size = LENGTH * sizeof(str);
+
+	char out[LENGTH][LENGTH];
+	//char **out;
+
+	char *d_str;
+	char **d_out;
+
+	cudaMalloc((void**) &d_str, size);
+	cudaMemcpy(d_str, str, size, cudaMemcpyHostToDevice);
+
+	cudaMalloc((void**) &d_out, out_size);
+
+	dim3 block(LENGTH,1);
+	dim3 grid(1,1);
+	
+	bw_transform<<<grid,block>>>(d_str,d_out);
+
+	cudaMemcpy(out, d_out, out_size , cudaMemcpyDeviceToHost);		// Memory Leak?
+
+	qsort(out, LENGTH, sizeof(const char*), compare);  //sort by lexical order
+
+	char result[LENGTH];
+	for(int i = 0; i < LENGTH; ++i){
+		result[i] = out[LENGTH-1][i];	// Last char of sorted list creates the result
+	}
+
+	printf("Final Result: %s\n", result);	//Should be BNN^AAA
+
+	cudaFree(d_str);
+	cudaFree(d_out);
+
+
+}
