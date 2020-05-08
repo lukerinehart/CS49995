@@ -1,0 +1,23 @@
+This version of the Reaction Diffusion simulation has many issues and is not very viually pleasing, but can show the way that the
+reactions between chemical A and B cause how a chemical can propagate.
+
+The reactions are measured and calculated by 2d convolution by using nearby cells as input, and along with the convolution, a FEED factor
+and KILL factor are also applied to calculate the value of the chemicals per cell. Each thread in the NxM matrix will have to gather
+TxT values from its surrounding cells, and then use that information to calculate the new value of it's chemicals based on the applied
+algorithm.
+
+Ghost cells can be used to optimize the convolution. Implementing a Shared memory or Global Memory variation of Reaction Diffusion could
+be difficult as there is no mask.
+
+I have enjoyed learning the concepts to the Reaction Diffusion/Gray Scott simulation, but due to unforseen events, poor time management,
+and many distractions, I was not able to put in much effort as I had wanted for this simulation.
+
+
+
+
+
+https://www.karlsims.com/rd.html
+
+https://www.youtube.com/watch?v=BV9ny785UNc
+
+https://en.wikipedia.org/wiki/Reaction%E2%80%93diffusion_system 
